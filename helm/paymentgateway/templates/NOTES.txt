@@ -1,0 +1,12 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+To check the status of your deployment:
+
+  kubectl get deployments -n {{ .Release.Namespace }}
+
+To access the paymentgateway:
+
+  kubectl port-forward svc/{{ include "paymentgateway.fullname" . }} {{ .Values.containerPort }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
