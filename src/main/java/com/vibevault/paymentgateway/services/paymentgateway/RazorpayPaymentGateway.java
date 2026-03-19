@@ -7,12 +7,11 @@ import com.razorpay.Utils;
 import com.vibevault.paymentgateway.configurations.RazorpayConfig;
 import com.vibevault.paymentgateway.dtos.PaymentLinkRequest;
 import com.vibevault.paymentgateway.dtos.PaymentLinkResponse;
+import com.vibevault.paymentgateway.exceptions.PaymentGatewayException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.springframework.stereotype.Service;
-
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,7 +26,7 @@ public class RazorpayPaymentGateway implements PaymentGateway {
         try {
             JSONObject paymentLinkRequest = new JSONObject();
             // Razorpay expects amount in paise (1 INR = 100 paise)
-            paymentLinkRequest.put("amount", request.getAmount().movePointRight(2).intValue());
+            paymentLinkRequest.put("amount", request.getAmount().movePointRight(2).longValue());
             paymentLinkRequest.put("currency", request.getCurrency() != null ? request.getCurrency() : "INR");
             paymentLinkRequest.put("accept_partial", false);
             paymentLinkRequest.put("reference_id", request.getOrderId().toString());
@@ -35,7 +34,7 @@ public class RazorpayPaymentGateway implements PaymentGateway {
                     ? request.getDescription()
                     : "Payment for order " + request.getOrderId());
 
-            if (request.getCustomerName() != null || request.getCustomerEmail() != null) {
+            if (request.getCustomerName() != null || request.getCustomerEmail() != null || request.getCustomerPhone() != null) {
                 JSONObject customer = new JSONObject();
                 if (request.getCustomerName() != null) customer.put("name", request.getCustomerName());
                 if (request.getCustomerEmail() != null) customer.put("email", request.getCustomerEmail());
@@ -71,7 +70,7 @@ public class RazorpayPaymentGateway implements PaymentGateway {
 
         } catch (RazorpayException e) {
             log.error("Failed to create Razorpay payment link for order {}: {}", request.getOrderId(), e.getMessage(), e);
-            throw new RuntimeException("Failed to create payment link: " + e.getMessage(), e);
+            throw new PaymentGatewayException("Failed to create payment link for order " + request.getOrderId(), e);
         }
     }
 
