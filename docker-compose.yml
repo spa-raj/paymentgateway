@@ -1,0 +1,63 @@
+services:
+  # MySQL
+  mysql:
+    image: mysql:8
+    container_name: paymentgateway-mysql
+    ports:
+      - "3310:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: paymentgateway
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - paymentgateway-network
+
+  # Payment Gateway Application
+  # Uses Kafka from cartservice via vibevault-network (alias: kafka)
+  paymentgateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: paymentgateway-app
+    environment:
+      PORT: 8084
+      DB_URL: jdbc:mysql://mysql:3306/paymentgateway
+      DB_USERNAME: root
+      DB_PASSWORD: password
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ISSUER_URI: ${ISSUER_URI:-http://userservice:8081}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+    ports:
+      - "8084:8084"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - paymentgateway-network
+      - vibevault-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  paymentgateway-network:
+    driver: bridge
+  vibevault-network:
+    external: true
