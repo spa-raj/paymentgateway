@@ -3,6 +3,7 @@ package com.vibevault.paymentgateway.controllers;
 import com.vibevault.paymentgateway.exceptions.InvalidPaymentStateException;
 import com.vibevault.paymentgateway.exceptions.PaymentNotFoundException;
 import com.vibevault.paymentgateway.models.Payment;
+import com.vibevault.paymentgateway.services.PaymentEventProducer;
 import com.vibevault.paymentgateway.services.PaymentService;
 import com.vibevault.paymentgateway.services.paymentgateway.PaymentGateway;
 import com.vibevault.paymentgateway.services.PaymentGatewaySelector;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 public class WebhookController {
 
     private final PaymentService paymentService;
+    private final PaymentEventProducer paymentEventProducer;
     private final PaymentGatewaySelector paymentGatewaySelector;
 
     @PostMapping("/razorpay")
@@ -57,10 +59,12 @@ public class WebhookController {
             switch (event) {
                 case "payment_link.paid" -> {
                     Payment payment = paymentService.confirmPayment(paymentLinkId);
+                    paymentEventProducer.sendPaymentConfirmed(payment);
                     log.info("Payment {} confirmed via webhook", payment.getId());
                 }
                 case "payment_link.expired", "payment_link.cancelled" -> {
                     Payment payment = paymentService.failPayment(paymentLinkId, "Payment link " + event.replace("payment_link.", ""));
+                    paymentEventProducer.sendPaymentFailed(payment);
                     log.info("Payment {} failed via webhook — {}", payment.getId(), event);
                 }
                 default -> log.debug("Ignoring Razorpay webhook event: {}", event);
