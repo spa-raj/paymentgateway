@@ -1,0 +1,35 @@
+replicaCount: 2
+
+image:
+  repository: paymentgateway
+  tag: latest
+  pullPolicy: Always
+
+containerPort: 8084
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+config:
+  issuerUri: "http://userservice:8081"
+  kafkaBootstrapServers: ""
+  dbUrl: ""
+
+externalSecrets:
+  dbSecretName: "vibevault/dev/paymentgateway/db-credentials"
+  razorpaySecretName: "vibevault/dev/paymentgateway/razorpay-credentials"
