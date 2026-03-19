@@ -2,7 +2,7 @@ package com.vibevault.paymentgateway.controllers;
 
 import com.vibevault.paymentgateway.exceptions.InvalidPaymentStateException;
 import com.vibevault.paymentgateway.exceptions.PaymentNotFoundException;
-import com.vibevault.paymentgateway.models.Payment;
+import com.vibevault.paymentgateway.dtos.PaymentTransitionResult;
 import com.vibevault.paymentgateway.services.PaymentEventProducer;
 import com.vibevault.paymentgateway.services.PaymentService;
 import com.vibevault.paymentgateway.services.paymentgateway.PaymentGateway;
@@ -58,14 +58,22 @@ public class WebhookController {
 
             switch (event) {
                 case "payment_link.paid" -> {
-                    Payment payment = paymentService.confirmPayment(paymentLinkId);
-                    paymentEventProducer.sendPaymentConfirmed(payment);
-                    log.info("Payment {} confirmed via webhook", payment.getId());
+                    PaymentTransitionResult result = paymentService.confirmPayment(paymentLinkId);
+                    if (result.stateChanged()) {
+                        paymentEventProducer.sendPaymentConfirmed(result.payment());
+                        log.info("Payment {} confirmed via webhook — event published", result.payment().getId());
+                    } else {
+                        log.info("Payment {} already confirmed — skipping duplicate event", result.payment().getId());
+                    }
                 }
                 case "payment_link.expired", "payment_link.cancelled" -> {
-                    Payment payment = paymentService.failPayment(paymentLinkId, "Payment link " + event.replace("payment_link.", ""));
-                    paymentEventProducer.sendPaymentFailed(payment);
-                    log.info("Payment {} failed via webhook — {}", payment.getId(), event);
+                    PaymentTransitionResult result = paymentService.failPayment(paymentLinkId, "Payment link " + event.replace("payment_link.", ""));
+                    if (result.stateChanged()) {
+                        paymentEventProducer.sendPaymentFailed(result.payment());
+                        log.info("Payment {} failed via webhook — event published", result.payment().getId());
+                    } else {
+                        log.info("Payment {} already failed — skipping duplicate event", result.payment().getId());
+                    }
                 }
                 default -> log.debug("Ignoring Razorpay webhook event: {}", event);
             }
