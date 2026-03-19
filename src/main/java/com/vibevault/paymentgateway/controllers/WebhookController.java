@@ -7,6 +7,7 @@ import com.vibevault.paymentgateway.services.PaymentGatewaySelector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,6 +37,12 @@ public class WebhookController {
         try {
             JSONObject webhookPayload = new JSONObject(payload);
             String event = webhookPayload.getString("event");
+
+            if (!event.startsWith("payment_link.")) {
+                log.debug("Ignoring non-payment-link webhook event: {}", event);
+                return ResponseEntity.ok("OK");
+            }
+
             JSONObject paymentLinkEntity = webhookPayload
                     .getJSONObject("payload")
                     .getJSONObject("payment_link")
@@ -60,7 +67,7 @@ public class WebhookController {
 
         } catch (Exception e) {
             log.error("Error processing Razorpay webhook: {}", e.getMessage(), e);
-            return ResponseEntity.ok("OK");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Processing failed");
         }
     }
 }
