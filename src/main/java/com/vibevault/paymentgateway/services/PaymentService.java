@@ -2,6 +2,7 @@ package com.vibevault.paymentgateway.services;
 
 import com.vibevault.paymentgateway.dtos.PaymentLinkRequest;
 import com.vibevault.paymentgateway.dtos.PaymentLinkResponse;
+import com.vibevault.paymentgateway.dtos.PaymentTransitionResult;
 import com.vibevault.paymentgateway.exceptions.InvalidPaymentStateException;
 import com.vibevault.paymentgateway.exceptions.PaymentNotFoundException;
 import com.vibevault.paymentgateway.models.Payment;
@@ -72,13 +73,13 @@ public class PaymentService {
     }
 
     @Transactional
-    public Payment confirmPayment(String gatewayPaymentId) {
+    public PaymentTransitionResult confirmPayment(String gatewayPaymentId) {
         Payment payment = paymentRepository.findByGatewayPaymentId(gatewayPaymentId)
                 .orElseThrow(() -> new PaymentNotFoundException("Payment not found for gateway ID: " + gatewayPaymentId));
 
         if (payment.getStatus() == PaymentStatus.CONFIRMED) {
             log.info("Payment {} already confirmed — no-op", payment.getId());
-            return payment;
+            return new PaymentTransitionResult(payment, false);
         }
         if (payment.getStatus() == PaymentStatus.FAILED) {
             throw new InvalidPaymentStateException("Cannot confirm payment " + payment.getId() + " — already FAILED");
@@ -87,17 +88,17 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.CONFIRMED);
         Payment saved = paymentRepository.save(payment);
         log.info("Payment {} confirmed for order {}", saved.getId(), saved.getOrderId());
-        return saved;
+        return new PaymentTransitionResult(saved, true);
     }
 
     @Transactional
-    public Payment failPayment(String gatewayPaymentId, String reason) {
+    public PaymentTransitionResult failPayment(String gatewayPaymentId, String reason) {
         Payment payment = paymentRepository.findByGatewayPaymentId(gatewayPaymentId)
                 .orElseThrow(() -> new PaymentNotFoundException("Payment not found for gateway ID: " + gatewayPaymentId));
 
         if (payment.getStatus() == PaymentStatus.FAILED) {
             log.info("Payment {} already failed — no-op", payment.getId());
-            return payment;
+            return new PaymentTransitionResult(payment, false);
         }
         if (payment.getStatus() == PaymentStatus.CONFIRMED) {
             throw new InvalidPaymentStateException("Cannot fail payment " + payment.getId() + " — already CONFIRMED");
@@ -106,7 +107,7 @@ public class PaymentService {
         log.info("Failing payment {} — reason: {}", payment.getId(), reason);
         payment.setStatus(PaymentStatus.FAILED);
         payment.setFailureReason(reason);
-        return paymentRepository.save(payment);
+        return new PaymentTransitionResult(paymentRepository.save(payment), true);
     }
 
     @Transactional(readOnly = true)
