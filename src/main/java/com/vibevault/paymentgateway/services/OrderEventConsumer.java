@@ -42,6 +42,7 @@ public class OrderEventConsumer {
         } catch (Exception e) {
             log.error("Failed to process ORDER_CREATED event {} for order {}: {}",
                     event.getEventId(), event.getOrderId(), e.getMessage(), e);
+            throw e; // rethrow so Kafka retries (createPayment is idempotent)
         }
     }
 }
