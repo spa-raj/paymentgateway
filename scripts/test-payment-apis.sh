@@ -406,7 +406,77 @@ else
 fi
 
 # --------------------------------------------------
-section "11. Kafka Event Verification"
+section "11. Interactive Payment (Razorpay Test Mode)"
+# --------------------------------------------------
+
+if [ -n "$PAYMENT_LINK" ]; then
+    echo ""
+    echo -e "  ${YELLOW}═══════════════════════════════════════════════════${NC}"
+    echo -e "  ${YELLOW}  Complete payment using Razorpay test mode:${NC}"
+    echo -e "  ${YELLOW}  Link: ${PAYMENT_LINK}${NC}"
+    echo -e "  ${YELLOW}  Card: 4111 1111 1111 1111${NC}"
+    echo -e "  ${YELLOW}  Expiry: any future date | CVV: any 3 digits${NC}"
+    echo -e "  ${YELLOW}═══════════════════════════════════════════════════${NC}"
+    echo ""
+    read -p "  Press ENTER after completing payment (or 's' to skip): " PAYMENT_CHOICE
+
+    if [ "$PAYMENT_CHOICE" != "s" ] && [ "$PAYMENT_CHOICE" != "S" ]; then
+        echo -e "  ${CYAN}Waiting for Razorpay webhook callback...${NC}"
+        sleep 10
+
+        # Verify payment is now CONFIRMED
+        request GET "$PAYMENTGATEWAY/payments/order/${ORDER_ID}" "$AUTH_ONLY"
+        PAYMENT_STATUS=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status', ''))" 2>/dev/null || echo "")
+
+        if [ "$PAYMENT_STATUS" = "CONFIRMED" ]; then
+            echo -e "  ${GREEN}PASS${NC} Payment status is CONFIRMED (webhook worked!)"
+            PASS=$((PASS + 1))
+        else
+            echo -e "  ${RED}FAIL${NC} Payment status is ${PAYMENT_STATUS} (expected CONFIRMED)"
+            FAIL=$((FAIL + 1))
+        fi
+
+        # Verify order is now CONFIRMED
+        request GET "$ORDERSERVICE/orders/${ORDER_ID}" "$AUTH_ONLY"
+        ORDER_STATUS=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status', ''))" 2>/dev/null || echo "")
+
+        if [ "$ORDER_STATUS" = "CONFIRMED" ]; then
+            echo -e "  ${GREEN}PASS${NC} Order status is CONFIRMED (saga complete!)"
+            PASS=$((PASS + 1))
+        else
+            echo -e "  ${RED}FAIL${NC} Order status is ${ORDER_STATUS} (expected CONFIRMED)"
+            FAIL=$((FAIL + 1))
+        fi
+
+        # Verify PAYMENT_CONFIRMED event in Kafka
+        KAFKA_CONTAINER="cartservice-kafka"
+        if docker ps --format '{{.Names}}' | grep -q "$KAFKA_CONTAINER"; then
+            sleep 3
+            CONFIRMED_EVENTS=$(docker exec "$KAFKA_CONTAINER" kafka-console-consumer \
+                --bootstrap-server localhost:9092 \
+                --topic payment-events \
+                --from-beginning \
+                --timeout-ms 5000 2>/dev/null || echo "")
+
+            if echo "$CONFIRMED_EVENTS" | grep -q "PAYMENT_CONFIRMED"; then
+                echo -e "  ${GREEN}PASS${NC} PAYMENT_CONFIRMED event found in payment-events topic"
+                PASS=$((PASS + 1))
+            else
+                echo -e "  ${RED}FAIL${NC} PAYMENT_CONFIRMED event not found"
+                FAIL=$((FAIL + 1))
+            fi
+        fi
+    else
+        echo -e "  ${YELLOW}SKIP${NC} Payment skipped — webhook tests not run"
+        SKIP=$((SKIP + 3))
+    fi
+else
+    echo -e "  ${YELLOW}SKIP${NC} No payment link — skipping interactive payment"
+    SKIP=$((SKIP + 3))
+fi
+
+# --------------------------------------------------
+section "12. Kafka Topic Verification"
 # --------------------------------------------------
 
 KAFKA_CONTAINER="cartservice-kafka"
@@ -454,7 +524,7 @@ else
 fi
 
 # --------------------------------------------------
-section "12. Payment Isolation (multi-user)"
+section "13. Payment Isolation (multi-user)"
 # --------------------------------------------------
 
 TIMESTAMP2=$(date +%s)
@@ -502,7 +572,7 @@ else
 fi
 
 # --------------------------------------------------
-section "13. Full Saga Summary"
+section "14. Full Saga Summary"
 # --------------------------------------------------
 
 echo -e "  ${CYAN}Saga flow verified:${NC}"
