@@ -82,6 +82,10 @@ jobs:
           RDS_ADDRESS=$(aws rds describe-db-instances \
             --db-instance-identifier ${{ env.EKS_CLUSTER_NAME }}-mysql \
             --query 'DBInstances[0].Endpoint.Address' --output text)
+          if [ -z "$RDS_ADDRESS" ] || [ "$RDS_ADDRESS" = "None" ]; then
+            echo "ERROR: Could not resolve RDS address"
+            exit 1
+          fi
           echo "rds_address=${RDS_ADDRESS}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy with Helm
