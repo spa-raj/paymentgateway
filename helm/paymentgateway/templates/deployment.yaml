@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "paymentgateway.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "paymentgateway.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "paymentgateway.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: {{ .Values.strategy.type }}
+    {{- if eq .Values.strategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.strategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.strategy.rollingUpdate.maxSurge }}
+    {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "paymentgateway.labels" . | nindent 8 }}
+    spec:
+      initContainers:
+        - name: copy-migrations
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "cd /tmp && unzip -o /app/app.jar 'BOOT-INF/classes/db/migration/*' && cp BOOT-INF/classes/db/migration/* /flyway-sql/"]
+          volumeMounts:
+            - name: flyway-sql
+              mountPath: /flyway-sql
+        - name: flyway-migrate
+          image: flyway/flyway:11.20
+          env:
+            - name: FLYWAY_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "paymentgateway.fullname" . }}-config
+                  key: DB_URL
+            - name: FLYWAY_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paymentgateway.fullname" . }}-secret
+                  key: DB_USERNAME
+            - name: FLYWAY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paymentgateway.fullname" . }}-secret
+                  key: DB_PASSWORD
+            - name: FLYWAY_CONNECT_RETRIES
+              value: "3"
+          command: ["flyway", "-locations=filesystem:/flyway/sql", "migrate"]
+          volumeMounts:
+            - name: flyway-sql
+              mountPath: /flyway/sql
+              readOnly: true
+      volumes:
+        - name: flyway-sql
+          emptyDir: {}
+      containers:
+        - name: {{ include "paymentgateway.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "paymentgateway.fullname" . }}-config
+            - secretRef:
+                name: {{ include "paymentgateway.fullname" . }}-secret
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
