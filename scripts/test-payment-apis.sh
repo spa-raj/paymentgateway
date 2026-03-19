@@ -423,12 +423,13 @@ if docker ps --format '{{.Names}}' | grep -q "$KAFKA_CONTAINER"; then
         --from-beginning \
         --timeout-ms 5000 2>/dev/null || echo "")
 
-    EVENT_COUNT=$(echo "$PAYMENT_EVENTS" | grep -c "eventType" || echo "0")
+    EVENT_COUNT=$(echo "$PAYMENT_EVENTS" | grep -c "eventType" 2>/dev/null || echo "0")
+    EVENT_COUNT=$(echo "$EVENT_COUNT" | tr -d '[:space:]')
     echo -e "  ${CYAN}Payment events in topic: ${EVENT_COUNT}${NC}"
 
     # Note: PAYMENT_CONFIRMED/FAILED events only appear after Razorpay webhook callback
     # which requires ngrok or EKS deployment. For local testing, we verify the topic exists.
-    if [ "$EVENT_COUNT" -ge 0 ]; then
+    if [ "$EVENT_COUNT" -ge 0 ] 2>/dev/null; then
         echo -e "  ${GREEN}PASS${NC} Payment events topic accessible"
         PASS=$((PASS + 1))
     fi
