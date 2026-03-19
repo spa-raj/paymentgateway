@@ -42,12 +42,16 @@ public class PaymentEventProducer {
     }
 
     private void send(PaymentEvent event) {
-        try {
-            kafkaTemplate.send(KafkaTopics.PAYMENT_EVENTS, event.getUserId(), event);
-            log.debug("Payment event sent: {} for order {}", event.getEventType(), event.getOrderId());
-        } catch (Exception e) {
-            log.warn("Failed to send payment event {} for order {}: {}",
-                    event.getEventType(), event.getOrderId(), e.getMessage());
-        }
+        kafkaTemplate.send(KafkaTopics.PAYMENT_EVENTS, event.getUserId(), event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to send payment event {} for order {}: {}",
+                                event.getEventType(), event.getOrderId(), ex.getMessage());
+                    } else {
+                        log.debug("Payment event sent: {} for order {} [partition={}, offset={}]",
+                                event.getEventType(), event.getOrderId(),
+                                result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
+                    }
+                });
     }
 }
