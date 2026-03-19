@@ -22,4 +22,4 @@ CREATE TABLE payments (
 CREATE UNIQUE INDEX idx_payment_order ON payments(order_id);
 CREATE UNIQUE INDEX idx_payment_order_event ON payments(order_event_id);
 CREATE INDEX idx_payment_user ON payments(user_id, created_at DESC);
-CREATE INDEX idx_payment_gateway_id ON payments(gateway_payment_id);
+CREATE UNIQUE INDEX idx_payment_gateway_id ON payments(gateway_payment_id);
