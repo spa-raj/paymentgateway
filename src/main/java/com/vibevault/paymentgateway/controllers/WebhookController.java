@@ -1,11 +1,14 @@
 package com.vibevault.paymentgateway.controllers;
 
+import com.vibevault.paymentgateway.exceptions.InvalidPaymentStateException;
+import com.vibevault.paymentgateway.exceptions.PaymentNotFoundException;
 import com.vibevault.paymentgateway.models.Payment;
 import com.vibevault.paymentgateway.services.PaymentService;
 import com.vibevault.paymentgateway.services.paymentgateway.PaymentGateway;
 import com.vibevault.paymentgateway.services.PaymentGatewaySelector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -65,6 +68,12 @@ public class WebhookController {
 
             return ResponseEntity.ok("OK");
 
+        } catch (InvalidPaymentStateException | PaymentNotFoundException e) {
+            log.info("Webhook processed as no-op: {}", e.getMessage());
+            return ResponseEntity.ok("OK");
+        } catch (JSONException e) {
+            log.warn("Invalid webhook payload format: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Invalid payload");
         } catch (Exception e) {
             log.error("Error processing Razorpay webhook: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Processing failed");
