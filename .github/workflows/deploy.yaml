@@ -88,6 +88,28 @@ jobs:
           fi
           echo "rds_address=${RDS_ADDRESS}" >> "$GITHUB_OUTPUT"
 
+      - name: Sync Razorpay credentials to AWS Secrets Manager
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+        run: |
+          SECRET_NAME="vibevault/dev/paymentgateway/razorpay-credentials"
+          SECRET_VALUE=$(jq -n --arg kid "$RAZORPAY_KEY_ID" --arg ks "$RAZORPAY_KEY_SECRET" --arg ws "$RAZORPAY_WEBHOOK_SECRET" \
+            '{key_id: $kid, key_secret: $ks, webhook_secret: $ws}')
+
+          if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" > /dev/null 2>&1; then
+            aws secretsmanager put-secret-value \
+              --secret-id "$SECRET_NAME" \
+              --secret-string "$SECRET_VALUE"
+            echo "Razorpay secret updated"
+          else
+            aws secretsmanager create-secret \
+              --name "$SECRET_NAME" \
+              --secret-string "$SECRET_VALUE"
+            echo "Razorpay secret created"
+          fi
+
       - name: Deploy with Helm
         run: |
           helm upgrade --install ${{ env.HELM_RELEASE }} ${{ env.HELM_CHART_PATH }} \
