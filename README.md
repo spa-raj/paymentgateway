@@ -62,6 +62,20 @@ Order Service → ORDER_CREATED (order-events)
 - **Fail-fast:** `@Validated` + `@NotBlank` on Razorpay keys — app won't start with missing config
 - **Webhook resilience:** 200 for state conflicts, 400 for bad payloads, 500 for transient failures (Razorpay retries)
 
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `8084` | Server port |
+| `DB_URL` | `jdbc:mysql://localhost:3306/paymentgateway` | MySQL JDBC URL |
+| `DB_USERNAME` | `root` | Database username |
+| `DB_PASSWORD` | `password` | Database password |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
+| `ISSUER_URI` | `http://localhost:8081` | OAuth2 issuer for JWT validation |
+| `RAZORPAY_KEY_ID` | — | Razorpay test mode key ID |
+| `RAZORPAY_KEY_SECRET` | — | Razorpay test mode key secret |
+| `RAZORPAY_WEBHOOK_SECRET` | — | Razorpay webhook signature secret |
+
 ## Local Development
 
 ### Prerequisites
